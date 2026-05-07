@@ -7,11 +7,9 @@
 ## Related Topics
 
 * *[Python Basics](https://github.com/learning-zone/python-basics)*
-* *[Generative AI](generative-ai.md)*
 * *[GitHub Copilot](github-copilot.md)*
 * *[Azure AI](azure-ai.md)*
 * *[Mathematics for AI](mathematics-for-ai.md)*
-* *[Algorithms for AI](algorithms-for-ai.md)*
 
 <br>
 
@@ -120,12 +118,8 @@
    * [Further Reading and Courses](#-82-further-reading-and-courses)
    * [Open Source Datasets](#-83-open-source-datasets)
 
-<br>
+<br/>
 
 ## # 1. GETTING STARTED
 
-<br>
-
-<div align="right">
-    <b><a href="#table-of-contents">↥ back to top</a></b>
-</div>
+<br/>
