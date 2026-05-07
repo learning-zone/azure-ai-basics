@@ -6,10 +6,10 @@
 
 ## Related Topics
 
+* *[Mathematics for AI](mathematics-for-ai.md)*
 * *[Python Basics](https://github.com/learning-zone/python-basics)*
 * *[GitHub Copilot](github-copilot.md)*
 * *[Azure AI](azure-ai.md)*
-* *[Mathematics for AI](mathematics-for-ai.md)*
 
 <br>
 
