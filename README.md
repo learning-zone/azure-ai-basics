@@ -6435,52 +6435,6 @@ spec:
         version: "2.0"
 ```
 
-```python
-# Automated canary promotion script
-import requests, time
-
-PROMETHEUS_URL = "http://prometheus:9090/api/v1/query"
-
-def get_metric(query: str) -> float:
-    r = requests.get(PROMETHEUS_URL, params={"query": query})
-    results = r.json()["data"]["result"]
-    return float(results[0]["value"][1]) if results else 0.0
-
-def canary_promotion_check(model_version: str = "v2") -> bool:
-    """Check if canary model meets quality gates."""
-    error_rate = get_metric(
-        f\'rate(prediction_errors_total{{version="{model_version}"}}[5m])\'
-    )
-    p99_latency = get_metric(
-        f\'histogram_quantile(0.99, rate(prediction_latency_seconds_bucket{{version="{model_version}"}}[5m]))\'
-    )
-    avg_score = get_metric(
-        f\'avg(prediction_score{{version="{model_version}"}})\'
-    )
-
-    print(f"Canary {model_version}: error_rate={error_rate:.4f}, p99={p99_latency:.3f}s, avg_score={avg_score:.4f}")
-
-    gates = {
-        "error_rate < 0.01":    error_rate < 0.01,
-        "p99_latency < 0.1s":   p99_latency < 0.1,
-        "avg_score >= 0.80":    avg_score >= 0.80
-    }
-    for gate, passed in gates.items():
-        print(f"  Gate \'{gate}\': {\'PASS\' if passed else \'FAIL\'}")
-    return all(gates.values())
-
-# Canary progression: 5% → 25% → 50% → 100%
-stages = [5, 25, 50, 100]
-for weight in stages:
-    print(f"\nSetting canary weight to {weight}%...")
-    # Apply kubectl patch or Istio API call here
-    time.sleep(300)   # Wait 5 min before checking
-    if not canary_promotion_check():
-        print("Quality gate failed — rolling back canary!")
-        break
-    print(f"Stage {weight}% passed. Proceeding...")
-```
-
 **Real-World Use Case:**  
 Netflix uses canary deployment for every ML model update in their recommendation system. When updating the two-tower retrieval model, they route 1% of traffic to the new model and monitor: CTR (click-through rate), play duration, thumbs up/down ratio, and diversity metrics — all compared against the control group in real time via their Experimentation Platform (XP). A statistically significant 0.5% CTR improvement at 99% confidence is required before full rollout. This rigor prevents the estimated $1B+ annual revenue risk from degraded recommendations.
 
