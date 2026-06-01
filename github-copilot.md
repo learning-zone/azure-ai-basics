@@ -24,6 +24,7 @@
 * [Privacy and Data](#-16-privacy-and-data)
 * [Language Support](#-17-language-support)
 * [Enterprise Best Practices](#-18-enterprise-best-practices)
+* [Model Context Protocol (MCP)](#-19-model-context-protocol-mcp)
 
 <br/>
 
@@ -151,6 +152,10 @@ GitHub Copilot is offered in four tiers as of 2025/2026:
 | Inline Chat | `Ctrl+I` | `Cmd+I` |
 | Open Copilot Edits | `Ctrl+Shift+I` | `Cmd+Shift+I` |
 
+**Enable/disable inline suggestions from the Status Bar:**
+
+![Copilot Status Bar menu with snooze and cancel snooze buttons](https://code.visualstudio.com/assets/docs/copilot/inline-suggestions/snooze-code-completions.png)
+
 <div align="right">
     <b><a href="#table-of-contents">↥ back to top</a></b>
 </div>
@@ -204,6 +209,18 @@ async function getUserById(req: Request, res: Response): Promise<void> {
 - Keep related files open in tabs (Copilot uses neighboring tabs as context)
 - Use docstring-style comments for complex logic
 
+**Ghost text inline suggestion:**
+
+![JavaScript ghost text suggestion](https://code.visualstudio.com/assets/docs/copilot/inline-suggestions/js-suggest.png)
+
+**Suggestion from code comment:**
+
+![Code comment drives TypeScript class suggestion](https://code.visualstudio.com/assets/docs/copilot/inline-suggestions/ts-suggest-code-comment.png)
+
+**Hovering to see alternative suggestions:**
+
+![Hovering over inline suggestion shows alternative options](https://code.visualstudio.com/assets/docs/copilot/inline-suggestions/copilot-hover-highlight.png)
+
 <div align="right">
     <b><a href="#table-of-contents">↥ back to top</a></b>
 </div>
@@ -249,6 +266,10 @@ User: #file:auth.ts How is JWT validation handled in this file?
 // "Refactor this to use async/await instead of callbacks"
 // Copilot rewrites the function in-place
 ```
+
+**Copilot Chat menu in the VS Code Command Center:**
+
+![Copilot Chat menu in the VS Code Command Center showing Chat, Inline Chat, and Quick Chat options](https://code.visualstudio.com/assets/docs/copilot/chat/copilot-chat/copilot-chat-menu-command-center.png)
 
 <div align="right">
     <b><a href="#table-of-contents">↥ back to top</a></b>
@@ -480,6 +501,10 @@ Copilot will:
 4. Create `__tests__/product.test.ts`
 5. Create `Dockerfile`
 6. Update `README.md`
+
+**Reviewing Copilot Edits — accept or discard proposed file changes:**
+
+![Editor showing proposed changes with review controls in the editor overlay](https://code.visualstudio.com/assets/docs/copilot/review-code-edits/copilot-edits-file-review-controls.png)
 
 <div align="right">
     <b><a href="#table-of-contents">↥ back to top</a></b>
@@ -808,6 +833,10 @@ Copilot resolves imports and type definitions to understand which APIs are avail
   ]
 }
 ```
+
+**Creating a new instructions file in the Agent Customizations editor:**
+
+![Agent Customizations editor showing the Instructions tab and dropdown to create a new instructions file](https://code.visualstudio.com/assets/docs/copilot/customization/create-instructions-file.png)
 
 <div align="right">
     <b><a href="#table-of-contents">↥ back to top</a></b>
@@ -1181,6 +1210,545 @@ gh api orgs/{org}/copilot/usage \
   --header "Accept: application/vnd.github+json" | \
   jq '[.[] | {date: .day, accepted: .total_acceptances_count, suggested: .total_suggestions_count, acceptance_rate: (.total_acceptances_count / .total_suggestions_count * 100 | round)}]'
 ```
+
+<div align="right">
+    <b><a href="#table-of-contents">↥ back to top</a></b>
+</div>
+
+## # 19. MODEL CONTEXT PROTOCOL (MCP)
+
+<br/>
+
+## Q. What is the Model Context Protocol (MCP) and why does it matter for GitHub Copilot?
+
+**Model Context Protocol (MCP)** is an open standard (introduced by Anthropic in 2024) that defines how AI models communicate with external tools, data sources, and services through a uniform interface. GitHub Copilot adopted MCP support in VS Code in 2025, enabling Agent mode to call any MCP-compatible server alongside its built-in tools.
+
+**Core idea — a universal plug-in system for AI:**
+
+```
+┌─────────────────────────────────────────┐
+│           GitHub Copilot (Client)        │
+│           (Agent Mode / Chat)            │
+└───────────────┬─────────────────────────┘
+                │  MCP Protocol (JSON-RPC 2.0)
+     ┌──────────┴──────────┐
+     │                     │
+┌────▼──────┐       ┌──────▼──────┐
+│ MCP Server│       │ MCP Server  │
+│ (GitHub)  │       │ (Filesystem)│
+└───────────┘       └─────────────┘
+```
+
+**Key components:**
+
+| Component | Description |
+|-----------|-------------|
+| **MCP Host** | The AI client (VS Code + Copilot) that connects to servers |
+| **MCP Server** | A lightweight process that exposes tools, resources, and prompts |
+| **Transport** | Communication layer: `stdio` (local process) or HTTP with SSE (remote) |
+| **Tools** | Callable functions (e.g., `read_file`, `run_query`, `create_issue`) |
+| **Resources** | Readable data sources (e.g., files, database records, API responses) |
+| **Prompts** | Pre-built prompt templates the model can invoke |
+
+**Why it matters:**
+- Extends Copilot beyond the codebase — access databases, APIs, cloud services
+- No vendor lock-in — one protocol, works across Claude, GPT-4, Copilot
+- Community ecosystem — hundreds of pre-built MCP servers available
+
+<div align="right">
+    <b><a href="#table-of-contents">↥ back to top</a></b>
+</div>
+
+## Q. How do you configure MCP servers for GitHub Copilot in VS Code?
+
+MCP servers are declared in a JSON config file. VS Code supports both **user-level** (global) and **workspace-level** (`.vscode/mcp.json`) configuration.
+
+**Workspace-level — `.vscode/mcp.json`:**
+
+```json
+{
+  "servers": {
+    "filesystem": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "${workspaceFolder}"],
+      "env": {}
+    },
+    "github": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${env:GITHUB_TOKEN}"
+      }
+    },
+    "postgres": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-postgres"],
+      "env": {
+        "POSTGRES_CONNECTION_STRING": "${env:DATABASE_URL}"
+      }
+    }
+  }
+}
+```
+
+**User-level — VS Code `settings.json`:**
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "brave-search": {
+        "type": "stdio",
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-brave-search"],
+        "env": {
+          "BRAVE_API_KEY": "${env:BRAVE_API_KEY}"
+        }
+      }
+    }
+  }
+}
+```
+
+**Using MCP tools in Copilot Agent mode:**
+
+1. Open Copilot Chat (`Ctrl+Alt+I`) and switch to **Agent mode**
+2. Copilot lists available MCP tools automatically
+3. Ask naturally — Copilot decides which tools to call:
+
+```
+@workspace List all open GitHub issues labeled "bug" and create a summary report
+```
+
+Copilot will invoke the `github` MCP server's `list_issues` tool automatically.
+
+**Managing servers via the Command Palette:**
+
+```
+View > Command Palette > MCP: List Servers    — see all configured servers
+View > Command Palette > MCP: Restart Server  — restart a failing server
+View > Command Palette > MCP: View Logs       — debug server output
+```
+
+**MCP server trust prompt when starting a new server:**
+
+![MCP server trust dialog asking the user to confirm trust before starting the server](https://code.visualstudio.com/assets/docs/copilot/mcp-servers/mcp-server-trust-dialog.png)
+
+<div align="right">
+    <b><a href="#table-of-contents">↥ back to top</a></b>
+</div>
+
+## Q. What are the most useful pre-built MCP servers for development workflows?
+
+The MCP ecosystem has a growing library of official and community servers:
+
+**Official `@modelcontextprotocol` servers:**
+
+| Server | Package | Key Tools |
+|--------|---------|-----------|
+| **Filesystem** | `@modelcontextprotocol/server-filesystem` | `read_file`, `write_file`, `list_directory`, `search_files` |
+| **GitHub** | `@modelcontextprotocol/server-github` | `list_issues`, `create_issue`, `get_pull_request`, `create_branch` |
+| **PostgreSQL** | `@modelcontextprotocol/server-postgres` | `query`, `list_tables`, `describe_table` |
+| **SQLite** | `@modelcontextprotocol/server-sqlite` | `read_query`, `write_query`, `list_tables` |
+| **Brave Search** | `@modelcontextprotocol/server-brave-search` | `brave_web_search`, `brave_local_search` |
+| **Fetch** | `@modelcontextprotocol/server-fetch` | `fetch` (HTTP requests) |
+| **Memory** | `@modelcontextprotocol/server-memory` | `create_entities`, `search_nodes` (knowledge graph) |
+| **Puppeteer** | `@modelcontextprotocol/server-puppeteer` | `navigate`, `screenshot`, `click`, `fill` |
+
+**Example: Full-stack workflow with multiple servers**
+
+```
+User prompt (Agent mode):
+"Check the GitHub issues for the word 'login', read the relevant auth files
+ in the codebase, query the users table schema, then propose a fix."
+
+Copilot will:
+1. Call github MCP → list_issues (filter: "login")
+2. Call filesystem MCP → read_file (auth.ts, login.controller.ts)
+3. Call postgres MCP → describe_table("users")
+4. Synthesize all results and propose code changes
+```
+
+**Install any server locally:**
+
+```bash
+# Install a specific MCP server globally
+npm install -g @modelcontextprotocol/server-github
+
+# Or let npx handle it on-demand (recommended — always latest version)
+npx -y @modelcontextprotocol/server-github
+```
+
+<div align="right">
+    <b><a href="#table-of-contents">↥ back to top</a></b>
+</div>
+
+## Q. How do you build a custom MCP server and expose it to GitHub Copilot?
+
+You can write custom MCP servers in Node.js, Python, or any language. The MCP SDK handles the JSON-RPC protocol layer.
+
+**Node.js custom MCP server example — internal REST API wrapper:**
+
+```typescript
+// mcp-servers/jira-server/index.ts
+import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import {
+  CallToolRequestSchema,
+  ListToolsRequestSchema,
+} from "@modelcontextprotocol/sdk/types.js";
+
+const server = new Server(
+  { name: "jira-server", version: "1.0.0" },
+  { capabilities: { tools: {} } }
+);
+
+// Declare available tools
+server.setRequestHandler(ListToolsRequestSchema, async () => ({
+  tools: [
+    {
+      name: "get_sprint_issues",
+      description: "Fetch all Jira issues in the current active sprint",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_key: { type: "string", description: "Jira project key, e.g. MYAPP" },
+          status: {
+            type: "string",
+            enum: ["To Do", "In Progress", "Done"],
+            description: "Filter by status (optional)",
+          },
+        },
+        required: ["project_key"],
+      },
+    },
+    {
+      name: "create_issue",
+      description: "Create a new Jira issue",
+      inputSchema: {
+        type: "object",
+        properties: {
+          project_key: { type: "string" },
+          summary:     { type: "string" },
+          description: { type: "string" },
+          issue_type:  { type: "string", enum: ["Bug", "Story", "Task"] },
+        },
+        required: ["project_key", "summary", "issue_type"],
+      },
+    },
+  ],
+}));
+
+// Handle tool calls
+server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  const { name, arguments: args } = request.params;
+
+  if (name === "get_sprint_issues") {
+    const { project_key, status } = args as { project_key: string; status?: string };
+    const jql = status
+      ? `project = ${project_key} AND sprint in openSprints() AND status = "${status}"`
+      : `project = ${project_key} AND sprint in openSprints()`;
+
+    const response = await fetch(
+      `${process.env.JIRA_BASE_URL}/rest/api/3/search?jql=${encodeURIComponent(jql)}`,
+      {
+        headers: {
+          Authorization: `Basic ${Buffer.from(`${process.env.JIRA_EMAIL}:${process.env.JIRA_API_TOKEN}`).toString("base64")}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+    const data = await response.json();
+    return {
+      content: [{ type: "text", text: JSON.stringify(data.issues, null, 2) }],
+    };
+  }
+
+  if (name === "create_issue") {
+    const { project_key, summary, description, issue_type } = args as any;
+    const response = await fetch(`${process.env.JIRA_BASE_URL}/rest/api/3/issue`, {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${Buffer.from(`${process.env.JIRA_EMAIL}:${process.env.JIRA_API_TOKEN}`).toString("base64")}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        fields: {
+          project: { key: project_key },
+          summary,
+          description: {
+            type: "doc", version: 1,
+            content: [{ type: "paragraph", content: [{ type: "text", text: description ?? "" }] }],
+          },
+          issuetype: { name: issue_type },
+        },
+      }),
+    });
+    const data = await response.json();
+    return {
+      content: [{ type: "text", text: `Created issue: ${data.key}` }],
+    };
+  }
+
+  throw new Error(`Unknown tool: ${name}`);
+});
+
+// Start stdio transport
+const transport = new StdioServerTransport();
+await server.connect(transport);
+```
+
+**Register the custom server in `.vscode/mcp.json`:**
+
+```json
+{
+  "servers": {
+    "jira": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["ts-node", "${workspaceFolder}/mcp-servers/jira-server/index.ts"],
+      "env": {
+        "JIRA_BASE_URL": "${env:JIRA_BASE_URL}",
+        "JIRA_EMAIL": "${env:JIRA_EMAIL}",
+        "JIRA_API_TOKEN": "${env:JIRA_API_TOKEN}"
+      }
+    }
+  }
+}
+```
+
+**Python alternative using the MCP Python SDK:**
+
+```python
+# mcp_servers/db_server.py
+from mcp.server import Server
+from mcp.server.stdio import stdio_server
+from mcp.types import Tool, TextContent
+import asyncio, sqlite3, json
+
+server = Server("sqlite-custom")
+
+@server.list_tools()
+async def list_tools():
+    return [
+        Tool(
+            name="run_query",
+            description="Run a read-only SQL SELECT query against the local SQLite DB",
+            inputSchema={
+                "type": "object",
+                "properties": {"sql": {"type": "string"}},
+                "required": ["sql"],
+            },
+        )
+    ]
+
+@server.call_tool()
+async def call_tool(name: str, arguments: dict):
+    if name == "run_query":
+        conn = sqlite3.connect("./app.db")
+        cur = conn.cursor()
+        cur.execute(arguments["sql"])
+        rows = cur.fetchall()
+        conn.close()
+        return [TextContent(type="text", text=json.dumps(rows, indent=2))]
+
+async def main():
+    async with stdio_server() as (r, w):
+        await server.run(r, w, server.create_initialization_options())
+
+asyncio.run(main())
+```
+
+<div align="right">
+    <b><a href="#table-of-contents">↥ back to top</a></b>
+</div>
+
+## Q. What are MCP resources and prompts, and how do they differ from tools?
+
+MCP servers can expose three primitives — **tools**, **resources**, and **prompts** — each serving a distinct purpose:
+
+| Primitive | Initiated by | Use case |
+|-----------|-------------|---------|
+| **Tools** | The AI model | Perform actions / side-effects (create file, call API, run query) |
+| **Resources** | The host / user | Expose read-only data for context injection (files, DB rows, config) |
+| **Prompts** | The user | Pre-built, parameterized prompt templates stored server-side |
+
+**Exposing a resource (live API docs as context):**
+
+```typescript
+import { ListResourcesRequestSchema, ReadResourceRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+
+server.setRequestHandler(ListResourcesRequestSchema, async () => ({
+  resources: [
+    {
+      uri: "api://openapi/spec",
+      name: "OpenAPI Specification",
+      description: "Current REST API specification in OpenAPI 3.1 format",
+      mimeType: "application/json",
+    },
+  ],
+}));
+
+server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+  if (request.params.uri === "api://openapi/spec") {
+    const spec = await fetch("http://localhost:3000/openapi.json").then(r => r.json());
+    return {
+      contents: [{ uri: request.params.uri, mimeType: "application/json", text: JSON.stringify(spec) }],
+    };
+  }
+  throw new Error("Resource not found");
+});
+```
+
+**Exposing a prompt template (code review checklist):**
+
+```typescript
+import { ListPromptsRequestSchema, GetPromptRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+
+server.setRequestHandler(ListPromptsRequestSchema, async () => ({
+  prompts: [
+    {
+      name: "review_pr",
+      description: "Structured pull request code review using team conventions",
+      arguments: [
+        { name: "diff", description: "The git diff to review", required: true },
+        { name: "focus", description: "Area to focus on: security | performance | readability", required: false },
+      ],
+    },
+  ],
+}));
+
+server.setRequestHandler(GetPromptRequestSchema, async (request) => {
+  const { diff, focus = "all" } = request.params.arguments ?? {};
+  return {
+    description: "PR Review prompt",
+    messages: [
+      {
+        role: "user",
+        content: {
+          type: "text",
+          text: `Review the following diff. Focus on: ${focus}.\n\nChecklist:\n- [ ] No hardcoded secrets\n- [ ] Error handling is present\n- [ ] No N+1 queries\n- [ ] Tests updated\n\nDiff:\n\`\`\`diff\n${diff}\n\`\`\``,
+        },
+      },
+    ],
+  };
+});
+```
+
+<div align="right">
+    <b><a href="#table-of-contents">↥ back to top</a></b>
+</div>
+
+## Q. How do you secure MCP servers and handle secrets safely in GitHub Copilot?
+
+MCP servers run with the same OS permissions as VS Code, so security hygiene is critical.
+
+**1. Never hardcode secrets — use environment variable references:**
+
+```json
+// .vscode/mcp.json  (safe — resolves at runtime from shell env)
+{
+  "servers": {
+    "github": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${env:GITHUB_TOKEN}"
+      }
+    }
+  }
+}
+```
+
+```bash
+# Set in shell profile, NOT in the JSON file
+export GITHUB_TOKEN="ghp_xxxxxxxxxxxxxxxxxxxx"
+```
+
+**2. Use read-only credentials whenever possible:**
+
+```typescript
+// Grant only SELECT privilege for the MCP DB user
+// SQL: GRANT SELECT ON ALL TABLES IN SCHEMA public TO mcp_readonly;
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,  // read-only user credentials
+  ssl: { rejectUnauthorized: true },
+});
+```
+
+**3. Validate and sanitize all tool inputs (prevent prompt injection):**
+
+```typescript
+server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  const { name, arguments: args } = request.params;
+
+  if (name === "run_query") {
+    const { sql } = args as { sql: string };
+
+    // Reject anything that is not a SELECT statement
+    if (!/^\s*SELECT\b/i.test(sql)) {
+      return {
+        content: [{ type: "text", text: "Error: only SELECT queries are permitted." }],
+        isError: true,
+      };
+    }
+
+    // Use parameterized queries for any user-supplied values
+    // Never concatenate raw input into SQL strings
+  }
+});
+```
+
+**4. Restrict filesystem server to safe directories only:**
+
+```json
+{
+  "servers": {
+    "filesystem": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "${workspaceFolder}/src",      // ✅ only expose src/
+        "${workspaceFolder}/docs"       // ✅ and docs/ — not the whole system
+      ]
+    }
+  }
+}
+```
+
+**5. Remote MCP servers — always use HTTPS + token auth:**
+
+```json
+{
+  "servers": {
+    "remote-api": {
+      "type": "http",
+      "url": "https://mcp.mycompany.com/v1/sse",
+      "headers": {
+        "Authorization": "Bearer ${env:MCP_API_TOKEN}"
+      }
+    }
+  }
+}
+```
+
+**Security checklist for MCP deployments:**
+
+| Check | Why |
+|-------|-----|
+| Use `${env:VAR}` for all secrets | Prevents leaking tokens into version control |
+| Scope filesystem access narrowly | Limits blast radius of prompt injection |
+| Validate tool input schemas strictly | Prevents injection via malicious prompts |
+| Use read-only DB credentials | Prevents accidental destructive queries |
+| Review community servers before use | Supply chain risk — audit the source code |
+| Pin server versions (`@1.2.3`) | Prevents breaking changes from auto-updates |
 
 <div align="right">
     <b><a href="#table-of-contents">↥ back to top</a></b>
