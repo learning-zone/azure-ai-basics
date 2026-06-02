@@ -6245,6 +6245,7 @@ async Task<string> AskAgentAsync(string userMessage)
     ThreadRun run = await agentsClient.CreateRunAsync(thread.Id, agent.Id);
 
     // Agent loop — handle tool calls and wait for completion
+    // FIX: Use proper pattern matching 'or' syntax
     while (run.Status is RunStatus.Queued or RunStatus.InProgress or RunStatus.RequiresAction)
     {
         await Task.Delay(TimeSpan.FromSeconds(1));
@@ -6263,9 +6264,8 @@ async Task<string> AskAgentAsync(string userMessage)
                     using JsonDocument args = JsonDocument.Parse(fnCall.Arguments);
                     string ticker   = args.RootElement.GetProperty("ticker").GetString()!;
                     string currency = args.RootElement.TryGetProperty("currency", out var cur)
-                                      ? cur.GetString()! : "USD";
+                                    ? cur.GetString()! : "USD";
 
-                    // Simulate a real market data API call
                     string price = ticker.ToUpper() switch
                     {
                         "MSFT" => "425.30",
@@ -6273,9 +6273,10 @@ async Task<string> AskAgentAsync(string userMessage)
                         _      => "N/A"
                     };
 
+                    // FIX: Used a raw string literal ($"\"\"") to avoid breaking quotes
                     toolOutputs.Add(new ToolOutput(
                         fnCall.Id,
-                        $"{{ \"ticker\": \"{ticker}\", \"price\": {price}, \"currency\": \"{currency}\" }}"));
+                        $$"""{ "ticker": "{{ticker}}", "price": {{price}}, "currency": "{{currency}}" }"""));
 
                     Console.WriteLine($"  [Tool call] {ticker} → {price} {currency}");
                 }
@@ -6285,6 +6286,7 @@ async Task<string> AskAgentAsync(string userMessage)
                 thread.Id, run.Id, toolOutputs);
         }
     }
+
 
     if (run.Status != RunStatus.Completed)
         return $"Run ended with status: {run.Status}";
